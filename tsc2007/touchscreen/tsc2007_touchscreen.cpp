@@ -15,6 +15,8 @@ namespace tsc2007 {
 
 static const char *const TAG = "tsc2007.touchscreen";
 
+
+
 void TSC2007Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TSC2007 Touchscreen...");
   
@@ -60,7 +62,7 @@ void TSC2007Touchscreen::update_touches() {
     this->add_raw_touch_position_(0, x, y, z1);
   }
   else {
-    ESP_LOGD(TAG, "No touch detected");
+    ESP_LOGVV(TAG, "No touch detected");
   }
 }
 
@@ -95,6 +97,9 @@ uint16_t TSC2007Touchscreen::command(adafruit_tsc2007_function func,
   return ((uint16_t)reply[0] << 4) | (reply[1] >> 4); // 12 bits
 }
 
+
+uint16_t min_x = 32000, min_y = 32000, max_x = 0, max_y = 0;
+
 /*!
  *    @brief  Read touch data from the TSC and then power down
  *    @param  x Pointer to 16-bit value we will store x reading
@@ -121,16 +126,31 @@ bool TSC2007Touchscreen::read_touch(uint16_t *x, uint16_t *y, uint16_t *z1,
 
   command(MEASURE_TEMP0, POWERDOWN_IRQON, ADC_12BIT);
 
-  if (abs((int32_t)x1 - (int32_t)x2) > 100)
+  if (abs((int32_t)x1 - (int32_t)x2) > 100) {
     ESP_LOGVV(TAG, "x1 and x2 differ too much");
     return false;
-  if (abs((int32_t)y1 - (int32_t)y2) > 100)
+  }
+  
+  if (abs((int32_t)y1 - (int32_t)y2) > 100) {
     ESP_LOGVV(TAG, "y1 and y2 differ too much");
     return false;
-
+  }
+  
   *x = x1;
   *y = y1;
-  return (*x != 4095) && (*y != 4095);
+
+  ESP_LOGV(TAG, "read_touch: checking for min/max calidation");
+  // Update min/max values
+  if (x1 < min_x) min_x = x1;
+  if (x1 > max_x) max_x = x1;
+  if (y1 < min_y) min_y = y1;
+  if (y1 > max_y) max_y = y1;
+  ESP_LOGD(TAG, "calibrate_touch x=%d,%d, y=%d,%d", min_x, max_x, min_y, max_y);
+
+   bool is_valid = (*x != 4095) && (*y != 4095);
+   ESP_LOGD(TAG, "read_touch: is_valid=%d", is_valid);
+
+  return is_valid;
 }
 
 
