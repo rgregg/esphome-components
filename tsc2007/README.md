@@ -2,17 +2,25 @@
 
 This component provides support for resistive touch screens using the TSC2007 touch controller.
 
+This code is based on the [Adafruit TSC2007 driver](https://github.com/adafruit/Adafruit_TSC2007) for Arduino. 
+
+Adafruit invests time and resources providing this open source code,
+please support Adafruit and open-source hardware by purchasing products from [Adafruit](https://adafruit.com)!
+
 ## Installation
 
-1. Copy the `components` directory to your ESPHome configuration directory.
-2. Add the following to your ESPHome configuration YAML:
+1. Add the following to your ESPHome configuration YAML:
 
 ```yaml
 # Example configuration
 external_components:
   - source: 
-      type: local
-      path: components
+      type: git
+      url: https://github.com/rgregg/esphome-components.git
+      ref: main
+    components:
+      - tsc2007
+      
 
 i2c:
   sda: GPIO21
@@ -29,15 +37,25 @@ display:
 touchscreen:
   - platform: tsc2007
     id: my_touchscreen
-    address: 0x48
     display: my_display
+    address: 0x48 # Default address for the TSC2007
+    calibration:  # Use values based on the calibration instructions below (optional)
+      x_min: 366  
+      x_max: 3649
+      y_min: 208
+      y_max: 3808
+    transform:   # Use values based on your display configuration (optional)
+      mirror_x: false
+      mirror_y: false
     
     on_touch:
-      then:
-        - logger.log:
-            format: "Touch at (%d, %d)"
-            args: [touch.x, touch.y]
-    
+      - lambda: |-
+          ESP_LOGI("cal", "x=%d, y=%d, x_raw=%d, y_raw=%0d",
+              touch.x,
+              touch.y,
+              touch.x_raw,
+              touch.y_raw
+              );    
     on_release:
       then:
         - logger.log: "Touch Released"
@@ -50,29 +68,3 @@ For the best results, you should calibrate your touchscreen. You'll need to find
 1. Set up the component with default values
 2. Add debug logging to see the raw values when touching corners
 3. Use these values to set the calibration_* values in your configuration
-
-## Example: Using with display pages to show touch position
-
-```yaml
-# Create a display page to show touch data
-display_page:
-  - id: page1
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height(), COLOR_WHITE);
-      it.print(10, 10, id(font1), COLOR_BLACK, TextAlign::TOP_LEFT, 
-               "Touch Detected!");
-      it.printf(10, 40, id(font1), COLOR_BLACK, TextAlign::TOP_LEFT,
-                "X: %.1f", x);
-      it.printf(10, 70, id(font1), COLOR_BLACK, TextAlign::TOP_LEFT,
-                "Y: %.1f", y);
-      it.printf(10, 100, id(font1), COLOR_BLACK, TextAlign::TOP_LEFT,
-                "Pressure: %.1f", pressure);
-
-tsc2007:
-  id: my_touchscreen
-  display: my_display
-  
-  on_touch:
-    then:
-      - display.page.show: page1
-```
