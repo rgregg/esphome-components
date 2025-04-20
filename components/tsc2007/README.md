@@ -15,9 +15,7 @@ please support Adafruit and open-source hardware by purchasing products from [Ad
 # Example configuration
 external_components:
   - source: 
-      type: git
-      url: https://github.com/rgregg/esphome-components.git
-      ref: main
+      url: github://rgregg/esphome-components.git@main
     components:
       - tsc2007
       
@@ -47,6 +45,7 @@ touchscreen:
     transform:   # Use values based on your display configuration (optional)
       mirror_x: false
       mirror_y: false
+      swap_xy: false
     
     on_touch:
       - lambda: |-
