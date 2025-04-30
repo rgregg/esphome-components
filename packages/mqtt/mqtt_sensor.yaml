@@ -1,0 +1,67 @@
+
+## Binds LVGL labels to data from an MQTT topic
+#      sensor_id: sensor_speed_kts
+#      sensor_name: "Speed (kts)"
+#      sensor_topic: "singlak/navigation.speedOverGround"
+#      header_label: label_sensor3_heading
+#      value_label: label_sensor3_value
+#      format: "%.1f"
+
+globals:
+  - id: value_${sensor_id}
+    type: float
+    initial_value: '0.0'
+  - id: has_value_${sensor_id}
+    type: bool
+    initial_value: 'false'
+
+# vars: sensor_id, sensor_name, sensor_topic
+text_sensor:
+  - platform: mqtt_subscribe
+    name: "MQTT-${sensor_name}"
+    id: mqtt_${sensor_id}
+    topic: ${sensor_topic}
+    internal: true
+    qos: 1
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD("JSON", x.c_str());
+            json::parse_json(x.c_str(), [](JsonObject root) -> bool {    
+              if (root["value"].is<JsonVariant>()) {
+                  float temp = root["value"].as<float>();
+                  id(value_${sensor_id}) = temp;
+                  id(has_value_${sensor_id}) = true;
+                  return true;
+              }
+              else {
+                ESP_LOGD("JSON", "No 'value' key in this json!");
+                return false;
+              }
+            });
+        - logger.log:
+            format: "MQTT ${sensor_name} updated to ${format}"
+            args: [ 'id(value_${sensor_id})' ]
+        - script.execute: update_${sensor_id}
+        
+script:
+  - id: update_${sensor_id}
+    then:
+      - lvgl.label.update:
+          id: ${header_label}
+          text: "${sensor_name}"
+      - lvgl.label.update: 
+          id: ${value_label}
+          text: !lambda |-
+            if (id(has_value_${sensor_id})) {
+              char buffer[16];
+              sprintf(buffer, "${format}", id(value_${sensor_id}));
+              return buffer;
+            } else {
+              return "...";
+            }
+
+esphome:
+  on_boot: 
+    then:
+      - script.execute: update_${sensor_id}
