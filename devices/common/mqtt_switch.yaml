@@ -1,0 +1,49 @@
+# vars: switch_id, switch_name, widget_id, label_id
+
+
+##
+## This package wires a LVGL button to a MQTT switch 
+##  - the switch is synchronized with the MQTT state topic, so when the button is checked or unchecked, MQTT is updated
+##  - and when MQTT is updated, the button is changed to reflect the current state from MQTT
+##  - MQTT is considered the authorative data source
+
+switch:
+    - platform: lvgl
+      id: ${switch_id}
+      name: ${switch_name}
+      widget: ${widget_id}
+      retain: 'true'
+      state_topic: "esp32/${device_name}/${switch_id}/state"
+      on_turn_on: 
+        then:
+          - script.execute: update_widget_${widget_id}
+      on_turn_off:
+        then:
+          - script.execute: update_widget_${widget_id}
+
+mqtt:
+  on_message: 
+    - topic: "esp32/${device_name}/switch/${switch_id}/state"
+      payload: "ON"
+      then:
+        - switch.turn_on: ${switch_id}
+    - topic: "esp32/${device_name}/switch/${switch_id}/state"
+      payload: "OFF"
+      then:
+        - switch.turn_off: ${switch_id}
+
+script:
+  - id: update_widget_${widget_id}
+    then:
+      - lvgl.label.update: 
+          id: ${label_id}
+          text: !lambda |-
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%s\n[%s]", id(${switch_id})->get_name().c_str(), id(${switch_id}).state ? "ON" : "OFF");
+            return std::string(buf);
+
+## Update the widget on boot to make sure the labels are correct
+esphome:
+  on_boot: 
+    then:
+      - script.execute: update_widget_${widget_id}

@@ -1,0 +1,353 @@
+# Project: ESP32-S3 TFT Touchscreen for Boat Dashboard
+substitutions:
+  device_name: feather-esp32-s3-tft-touch
+
+esphome:
+  name: feather-esp32-s3-tft-touch
+  friendly_name: ${device_name}
+  on_boot:
+    then:
+      - lvgl.widget.hide:
+          id: loading_screen
+
+packages:
+  mqtt: !include
+    file: common/mqtt_broker.yaml
+    vars:
+      broker_ip: "mqtt.lan"
+  styles: !include common/lvgl_styles.yaml
+  header_bar: !include common/lvgl_header_bar.yaml
+  relay1: !include
+    file: common/mqtt_switch.yaml
+    vars:
+      switch_id: switch_relay1
+      widget_id: btn_switch_relay1
+      label_id: label_btn_relay1
+      switch_name: "AIS Transmit"
+  relay2: !include 
+    file: common/mqtt_switch.yaml
+    vars:
+      switch_id: switch_relay2
+      widget_id: btn_switch_relay2
+      label_id: label_btn_relay2
+      switch_name: "GPS Logging"
+  speed_kts: !include
+    file: common/mqtt_sensor.yaml
+    vars:
+      sensor_id: sensor_speed_kts
+      sensor_name: "Speed (kts)"
+      sensor_topic: "signalk/navigation.speedOverGround"
+      header_label: label_sensor1_heading
+      value_label: label_sensor1_value
+      format: "%.1f"
+  engine_rpm: !include
+    file: common/mqtt_sensor.yaml
+    vars:
+      sensor_id: sensor_engine_rpm
+      sensor_name: "RPM"
+      sensor_topic: "signalk/propulsion.port.revolutions"
+      header_label: label_sensor2_heading
+      value_label: label_sensor2_value
+      format: "%.0f"
+  engine_mpg: !include
+    file: common/mqtt_sensor.yaml
+    vars:
+      sensor_id: sensor_engine_mpg
+      sensor_name: "MPG"
+      sensor_topic: "signalk/propulsion.port.fuel.economy"
+      header_label: label_sensor3_heading
+      value_label: label_sensor3_value
+      format: "%.1f"
+  engine_gph: !include
+    file: common/mqtt_sensor.yaml
+    vars:
+      sensor_id: sensor_engine_gph
+      sensor_name: "GPH"
+      sensor_topic: "signalk/propulsion.port.fuel.rate"
+      header_label: label_sensor4_heading
+      value_label: label_sensor4_value
+      format: "%.1f"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+external_components:
+  - source: "github://rgregg/esphome-components@main"
+    components:
+      - tsc2007
+
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "oqfYy05wx02U8cDd6qgD9kesLLXetpE3RNK7xhSuUMA="
+
+ota:
+  - platform: esphome
+    password: "8c6f1a8386f2a037bfb3ff6b5642206e"
+
+psram:
+
+spi:
+  - clk_pin: GPIO36
+    mosi_pin: GPIO35
+    miso_pin: GPIO37
+    interface: hardware
+
+i2c:
+  - scl: GPIO04
+    sda: GPIO03
+    scan: true
+    id: busa
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  on_connect:
+    then:
+      - lambda: |-
+          ESP_LOGI("wifi_event", "WiFi Connected, IP=%s", WiFi.localIP().toString().c_str());
+          // e.g. update your banner label immediately:
+          id(internal_wifi_connected) = true;
+      - lvgl.label.update:
+          id: wifi_label
+          text: "Online"
+          
+  # Called whenever WiFi drops (i.e. deauth, AP unreachable, etc)
+  on_disconnect:
+    then:
+      - lambda: |-
+          ESP_LOGW("wifi_event", "WiFi Disconnected");
+          // update banner label
+          id(internal_wifi_connected) = false;
+      - lvgl.label.update:
+          id: wifi_label
+          text: "Disconnected"
+    
+touchscreen:
+  - platform: tsc2007
+    id: tft_touchscreen
+    display: tft_display 
+    calibration:
+      x_min: 366
+      x_max: 3649
+      y_min: 208
+      y_max: 3808
+    transform:
+      mirror_x: false
+      mirror_y: true
+      swap_xy: true
+
+display:
+  - platform: ili9xxx
+    model: ILI9488
+    dc_pin: GPIO10
+    cs_pin: GPIO09
+    invert_colors: false
+    update_interval: never
+    transform:
+      swap_xy: true
+      mirror_x: true
+    dimensions:
+      height: 320
+      width: 480
+    id: tft_display
+    auto_clear_enabled: false
+
+globals:
+  - id: virtual_speed_kts
+    type: float
+    restore_value: no
+    initial_value: '27.6'
+  - id: virtual_mpg
+    type: float
+    restore_value: no
+    initial_value: '2.1'
+  - id: internal_wifi_connected
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+time:
+  - platform: homeassistant
+    id: esptime
+    on_time:
+      - seconds: 0
+        minutes: "/1"
+        hours: "*"
+        then:
+          - lvgl.label.update:
+              id: time_label
+              text: !lambda |-
+                  auto t = id(esptime).now();
+                  char buf[6];
+                  // HH:MM format
+                  sprintf(buf, "%d:%02d", t.hour, t.minute);
+                  return std::string(buf);
+
+web_server:
+  port: 8080
+
+lvgl:
+  pages:
+    - id: default_page
+      scrollable: 'false'
+      scrollbar_mode: "OFF"
+      widgets:
+        - obj:  # layout container
+            scrollable: 'false'
+            scrollbar_mode: "OFF"
+            pad_all: 3    # internal padding
+            width: 470
+            height: 280
+            y: 32
+            x: 5
+            layout:
+              type: FLEX
+              flex_flow: COLUMN_WRAP
+              flex_align_cross: CENTER
+            widgets:
+              - button:
+                  id: btn_switch_relay1
+                  styles: btn_button
+                  checkable: true
+                  widgets:
+                    - label:
+                        id: label_btn_relay1
+                        styles: btn_label
+                        text: "Button 1"
+              - button:
+                  id: btn_switch_relay2
+                  styles: btn_button
+                  checkable: true
+                  widgets:
+                    - label:
+                        id: label_btn_relay2
+                        styles: btn_label
+                        text: "Button 2"
+              - obj:
+                  id: sensor1
+                  styles: sensor_panel
+                  scrollable: 'false'
+                  scrollbar_mode: "OFF"
+                  width: 150
+                  height: 120
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+
+                  widgets:
+                    - label:
+                        id: label_sensor1_heading
+                        styles: label_sensor_heading
+                        text: "Speed (kts)"
+                        align: center
+                        width: 110
+                    - label:
+                        id: label_sensor1_value
+                        styles: label_sensor_value
+                        
+                        text: !lambda |-
+                          char buf[16];
+                          // format with one decimal place
+                          int len = snprintf(buf, sizeof(buf), "%.1f", id(virtual_speed_kts));
+                          // make sure it fit
+                          if (len < 0) {
+                            return std::string("ERR");
+                          }
+                          return std::string(buf);
+              - obj:
+                  id: sensor2
+                  styles: sensor_panel
+                  scrollable: 'false'
+                  scrollbar_mode: "OFF"
+                  width: 150
+                  height: 120
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_cross: CENTER
+                    flex_align_main: CENTER
+                  widgets:
+                    - label:
+                        id: label_sensor2_heading
+                        styles: label_sensor_heading
+                        text: "MPG"
+                        width: 110
+                    - label:
+                        id: label_sensor2_value
+                        styles: label_sensor_value
+                        text: !lambda |-
+                            char buf[16];
+                            // format with one decimal place
+                            int len = snprintf(buf, sizeof(buf), "%.1f", id(virtual_mpg));
+                            // make sure it fit
+                            if (len < 0) {
+                              return std::string("ERR");
+                            }
+                            return std::string(buf);
+              - obj:
+                  id: sensor3
+                  styles: sensor_panel
+                  scrollable: 'false'
+                  scrollbar_mode: "OFF"
+                  width: 150
+                  height: 120
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_cross: CENTER
+                    flex_align_main: CENTER
+                  widgets:
+                    - label:
+                        id: label_sensor3_heading
+                        styles: label_sensor_heading
+                        text: "RPM"
+                        width: 110
+                    - label:
+                        id: label_sensor3_value
+                        styles: label_sensor_value
+                        text: !lambda |-
+                            char buf[16];
+                            // format with one decimal place
+                            int len = snprintf(buf, sizeof(buf), "%d", 4300);
+                            // make sure it fit
+                            if (len < 0) {
+                              return std::string("ERR");
+                            }
+                            return std::string(buf);
+              - obj:
+                  id: sensor4
+                  styles: sensor_panel
+                  scrollable: 'false'
+                  scrollbar_mode: "OFF"
+                  width: 150
+                  height: 120
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_cross: CENTER
+                    flex_align_main: CENTER
+                  widgets:
+                    - label:
+                        id: label_sensor4_heading
+                        styles: label_sensor_heading
+                        text: "GPH"
+                        width: 110
+                    - label:
+                        id: label_sensor4_value
+                        styles: label_sensor_value
+                        text: !lambda |-
+                            char buf[16];
+                            // format with one decimal place
+                            int len = snprintf(buf, sizeof(buf), "%.1f", 22.1);
+                            // make sure it fit
+                            if (len < 0) {
+                              return std::string("ERR");
+                            }
+                            return std::string(buf);

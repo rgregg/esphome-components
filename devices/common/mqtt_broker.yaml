@@ -1,0 +1,18 @@
+# vars: broker_ip, device_name
+
+mqtt:
+    broker: ${broker_ip}
+    topic_prefix: "esp32/${device_name}"
+    will_message:
+      topic: "esp32/${device_name}/status"
+      payload: "offline"
+    birth_message:
+      topic: "esp32/${device_name}/status"
+      payload: "online"
+    discovery: false
+    on_connect: 
+      then:
+        - logger.log: "Connected to MQTT broker"
+    on_disconnect: 
+      then:
+        - logger.log: "Disconnected from MQTT broker"

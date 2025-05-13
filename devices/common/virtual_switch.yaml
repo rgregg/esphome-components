@@ -1,0 +1,36 @@
+# Virtual switch entity which updates lvgl btn_${switch_id} state automatically when changed
+# vars: switch_id, switch_name
+
+globals:
+    - id: virtual_${switch_id}
+      type: bool
+      restore_value: no
+      initial_value: 'false'
+
+switch:
+    - platform: template
+      id: switch_${switch_id}
+      name: ${switch_name}
+      optimistic: true
+      turn_on_action:
+        - globals.set:
+            id: virtual_${switch_id}
+            value: 'true'
+        - logger.log:
+            format: "virtual_${switch_id}: ON"
+        - lvgl.widget.update:
+            id: btn_${switch_id}
+            state:
+                checked: true
+      turn_off_action:
+        - globals.set:
+            id: virtual_${switch_id}
+            value: 'false'
+        - logger.log:
+            format: "virtual_${switch_id}: OFF"
+        - lvgl.widget.update:
+            id: btn_${switch_id}
+            state:
+                checked: false
+      lambda: |-
+        return id(virtual_${switch_id});

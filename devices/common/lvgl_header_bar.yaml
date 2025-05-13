@@ -1,0 +1,44 @@
+lvgl:
+  top_layer:
+    widgets:
+      - obj:
+          id: banner
+          styles: panel_bg
+          align: TOP_MID
+          scrollable: 'false'
+          scrollbar_mode: "OFF"
+          width: 480
+          height: 30
+          pad_all: 4
+          layout:
+            type: FLEX
+            flex_flow: ROW
+            flex_align_main: SPACE_BETWEEN
+            flex_align_cross: CENTER
+          widgets:
+            - label:
+                id: wifi_label
+                styles: panel_label
+                text: 'Connecting...'
+            - label: 
+                id: time_label
+                styles: panel_label
+                text: '00:00'
+      - obj:
+            id: loading_screen
+            width: 480
+            height: 320
+            x: 0
+            y: 0
+            styles: panel_bg
+            scrollable: 'false'
+            scrollbar_mode: "OFF"
+            layout:
+              type: FLEX
+              flex_flow: COLUMN_WRAP
+              flex_align_cross: CENTER
+            widgets:
+                - label:
+                    id: loading_label
+                    styles: panel_label
+                    text: 'BoatPi Loading...'

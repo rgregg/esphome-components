@@ -1,0 +1,94 @@
+# Default device styles for LVGL displays
+lvgl:
+  style_definitions:
+    - id: panel_bg
+      bg_color: 0x415A77         # Slate blue panel background
+      border_color: 0x12232E     # Dark border
+      border_width: 1
+      radius: 4
+      text_color: 0xE0E1DD        # Primary
+
+    - id: header_bar
+      bg_color: 0x415A77         # Slate blue panel background
+      border_width: 0
+      text_color: 0xE0E1DD        # Primary
+
+
+    - id: panel_label
+      text_color: 0xE0E1DD        # Primary
+      text_font: lato_18
+
+    - id: btn_button
+      width: 160
+      height: 120
+      align: center
+
+    - id: btn_label
+      text_color: 0xFFFFFF        # Primary
+      text_font: lato_20
+      align: CENTER
+      text_align: center
+
+    - id: sensor_panel
+      #border_color: 0x12232E
+      border_width: 0
+      #radius: 4
+
+    - id: label_sensor_heading
+      text_color: 0x415A77        # Slate blue
+      text_font: lato_18
+      text_align: center
+      align: center
+      #border_color: 0xFF0000
+      #border_width: 1
+
+    - id: label_sensor_value
+      text_color: 0x415A77        # Primary
+      text_font: lato_50
+      text_align: center
+      align: center
+      #border_color: 0xFF0000
+      #border_width: 1
+
+
+  theme:    
+    button:
+      bg_color: 0x2E3B55         # Unselected / idle
+      border_color: 0x12232E
+      outline_pad: 4
+      text_color: 0x2E3B55        # Primary
+      pressed:
+        bg_color: 0x278EA5
+      checked:
+        bg_color: 0x5DA9E9
+      focused:
+        border_color: 0x00E5FF    # Bright cyan
+    # label:
+    #   text_color: 0x2E3B55        # Primary
+
+
+font:
+  - file:
+      type: gfonts
+      family: Lato
+      weight: 400
+    id: lato_12
+    size: 12
+  - file:
+      type: gfonts
+      family: Lato
+      weight: 400
+    id: lato_18
+    size: 18
+  - file:
+      type: gfonts
+      family: Lato
+      weight: 400
+    id: lato_20
+    size: 20
+  - file:
+      type: gfonts
+      family: Lato
+      weight: 400
+    id: lato_50
+    size: 50
