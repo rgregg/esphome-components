@@ -29,14 +29,18 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-//#define FT5336_DEBUG
-
 namespace esphome {
 namespace ft5336 {
 static const char *const TAG = "ft5336.touchscreen";
 
 void FT5336Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FT5336 Touchscreen...");
+  
+  // default config
+  this->x_raw_min_ = 0;
+  this->y_raw_min_ = 0;
+  this->x_raw_max_ = this->display_->get_native_width();
+  this->y_raw_max_ = this->display_->get_native_height();
 
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
@@ -54,13 +58,18 @@ void FT5336Touchscreen::setup() {
   // change threshhold to be higher/lower
   // writeRegister8(FT53XX_REG_THRESHHOLD, thresh);
 
-  if (this->readRegister8(FT53XX_REG_VENDID) != FT53XX_VENDID) {
+  uint8_t vendid = this->readRegister8(FT53XX_REG_VENDID);
+  ESP_LOGD(TAG, "Vendor ID: 0x%02X", vendid);
+
+  if (vendid != FT53XX_VENDID) {
     ESP_LOGE(TAG, "Vendor ID mismatch");
     this->mark_failed();
     return;
   }
-  uint8_t id = this->readRegister8(FT53XX_REG_CHIPID);
-  if (id != FT5336_CHIPID) {
+
+  uint8_t chipid = this->readRegister8(FT53XX_REG_CHIPID);
+  ESP_LOGD(TAG, "Chip ID: 0x%02X", chipid);
+  if (chipid != FT5336_CHIPID) {
     ESP_LOGE(TAG, "Chip ID mismatch");
     this->mark_failed();
     return;
@@ -71,12 +80,14 @@ void FT5336Touchscreen::setup() {
 
 uint8_t FT5336Touchscreen::readRegister8(uint8_t reg) {
     uint8_t buffer[1];
-    i2c::ErrorCode err = this->read_register(reg, buffer, 1);    
+    i2c::ErrorCode err = this->read_register(reg, buffer, 1); 
+
     if (err != i2c::ERROR_OK) {
         ESP_LOGE(TAG, "Failed to read register 0x%02X: %d", reg, err);
         return 0;
     }
-    return buffer[1];
+    ESP_LOGD(TAG, "Read register 0x%02X: 0x%02X", reg, buffer[0]);
+    return buffer[0];
 }
   
 void FT5336Touchscreen::writeRegister8(uint8_t reg, uint8_t val) {
@@ -86,6 +97,7 @@ void FT5336Touchscreen::writeRegister8(uint8_t reg, uint8_t val) {
         ESP_LOGE(TAG, "Failed to write register 0x%02X: %d", reg, err);
         return;
     }
+    ESP_LOGD(TAG, "Write register 0x%02X: 0x%02X", reg, val);
 }
 
 void FT5336Touchscreen::dump_config() {
@@ -98,13 +110,13 @@ void FT5336Touchscreen::dump_config() {
 
 #ifdef FT5336_DEBUG
     ESP_LOGD(TAG, "  Debugging enabled");
-    ESP_LOGD(TAG, "  Vend ID: 0x%d", this->readRegister8(FT53XX_REG_VENDID));
-    ESP_LOGD(TAG, "  Chip ID: 0x%d", this->readRegister8(FT53XX_REG_CHIPID));
-    ESP_LOGD(TAG, "  Firm V: %d", this->readRegister8(FT53XX_REG_FIRMVERS));
-    ESP_LOGD(TAG, "  Thresh: %d", this->readRegister8(FT5336_REG_THRESHGROUP));
+    ESP_LOGD(TAG, "  Vend ID: 0x%02X", this->readRegister8(FT53XX_REG_VENDID));
+    ESP_LOGD(TAG, "  Chip ID: 0x%02X", this->readRegister8(FT53XX_REG_CHIPID));
+    ESP_LOGD(TAG, "  Firm V: %02X", this->readRegister8(FT53XX_REG_FIRMVERS));
+    ESP_LOGD(TAG, "  Thresh: %02X", this->readRegister8(FT5336_REG_THRESHGROUP));
     // dump all registers
     for (int16_t i = 0; i < 0x10; i++) {
-        ESP_LOGD(TAG, "I2C $%d = 0x%d", i, this->readRegister8(i));
+        ESP_LOGD(TAG, "I2C $%02X = 0x%02X", i, this->readRegister8(i));
     }
 #endif
 }
@@ -121,13 +133,6 @@ void FT5336Touchscreen::update_touches() {
     if ((touches > 5) || (touches == 0)) {
       touches = 0;
     }
-    gesture = i2cdat[FT5336_GEST_ID];
-
-  #ifdef FT5336_DEBUG
-    if (gesture) {
-      ESP_LOGD(TAG, "Gesture #%d", gesture);
-    }
-  #endif
   
     for (uint8_t i = 0; i < touches; i++) {
       touchX[i] = i2cdat[FT5336_TOUCH1_XH + i * 6] & 0x0F;
@@ -140,15 +145,10 @@ void FT5336Touchscreen::update_touches() {
   
       touchID[i] = i2cdat[FT5336_TOUCH1_YH + i * 6] >> 4;
 
-      this->add_raw_touch_position_(i, touchX[i], touchY[i], 1);
+      this->add_raw_touch_position_(touchID[i], touchX[i], touchY[i], 1);
+      ESP_LOGD(TAG, "ID #%d\t(%d, %d)", touchID[i], touchX[i], touchY[i]);
     }
-  
-  #ifdef FT5336_DEBUG
-    for (uint8_t i = 0; i < touches; i++) {
-        ESP_LOGD(TAG, "ID #%d\t(%d, %d)", touchID[i], touchX[i], touchY[i]);
-    }
-  #endif
-}
+  }
 
 /**************************************************************************/
 /*!
@@ -166,111 +166,4 @@ uint8_t FT5336Touchscreen::touched(void) {
 
 } // namespace ft5336
 } // namespace esphome
-
-
-
-// /**************************************************************************/
-// /*!
-//     @brief  Queries the chip and retrieves a point data
-//     @param  n The # index (0 to 4 inclusive) to the points we can detect.
-//     @returns {@link TS_Point} object that has the x and y coordinets set. If the
-//    z coordinate is 0 it means the point is not touched. If z is 1, it is
-//    currently touched.
-// */
-// /**************************************************************************/
-// TS_Point Adafruit_FT5336::getPoint(uint8_t n) {
-//   readData();
-//   if ((touches == 0) || (n > 1)) {
-//     return TS_Point(0, 0, 0);
-//   } else {
-//     return TS_Point(touchX[n], touchY[n], 1);
-//   }
-// }
-
-// /**************************************************************************/
-// /*!
-//     @brief  Queries the chip and retrieves up to 'maxtouches' points
-//     @param points Array of {@link TS_Point} objects that will be filled with
-//    x/y/z data. z coordinate is 0 it means the point is not touched. If z is 1,
-//    it is currently touched.
-//     @param  maxtouches The number of allocated points that we could fill with
-//    data.
-// */
-// /**************************************************************************/
-// void Adafruit_FT5336::getPoints(TS_Point *points, uint8_t maxtouches) {
-//   readData();
-
-//   // zero out all the points
-//   for (uint8_t i = 0; i < maxtouches; i++) {
-//     points[i].x = 0;
-//     points[i].y = 0;
-//     points[i].z = 0;
-//   }
-
-//   // identify all points and assign
-//   for (uint8_t i = 0; i < touches; i++) {
-//     uint8_t id = touchID[i];
-//     if (id >= maxtouches)
-//       continue;
-//     points[id].x = touchX[i];
-//     points[id].y = touchY[i];
-//     points[id].z = 1;
-//   }
-// }
-
-// /************ lower level i/o **************/
-
-// /**************************************************************************/
-// /*!
-//     @brief  Reads the bulk of data from captouch chip. Fill in {@link touches},
-//    {@link touchX}, {@link touchY} and {@link touchID} with results
-// */
-// /**************************************************************************/
-// void Adafruit_FT5336::readData(void) {
-
-//   uint8_t i2cdat[32];
-//   uint8_t addr = 0;
-//   i2c_dev->write_then_read(&addr, 1, i2cdat, 32);
-
-//   touches = i2cdat[FT5336_TD_STATUS];
-//   if ((touches > 5) || (touches == 0)) {
-//     touches = 0;
-//   }
-//   gesture = i2cdat[FT5336_GEST_ID];
-// #ifdef FT5336_DEBUG
-//   if (gesture) {
-//     Serial.print("Gesture #");
-//     Serial.println(gesture);
-//   }
-// #endif
-
-//   for (uint8_t i = 0; i < touches; i++) {
-//     touchX[i] = i2cdat[FT5336_TOUCH1_XH + i * 6] & 0x0F;
-//     touchX[i] <<= 8;
-//     touchX[i] |= i2cdat[FT5336_TOUCH1_XL + i * 6];
-
-//     touchY[i] = i2cdat[FT5336_TOUCH1_YH + i * 6] & 0x0F;
-//     touchY[i] <<= 8;
-//     touchY[i] |= i2cdat[FT5336_TOUCH1_YL + i * 6];
-
-//     touchID[i] = i2cdat[FT5336_TOUCH1_YH + i * 6] >> 4;
-//   }
-
-// #ifdef FT5336_DEBUG
-//   Serial.println();
-//   for (uint8_t i = 0; i < touches; i++) {
-//     Serial.print("ID #");
-//     Serial.print(touchID[i]);
-//     Serial.print("\t(");
-//     Serial.print(touchX[i]);
-//     Serial.print(", ");
-//     Serial.print(touchY[i]);
-//     Serial.print(") ");
-//   }
-//   Serial.println();
-// #endif
-// }
-
-
-
 
