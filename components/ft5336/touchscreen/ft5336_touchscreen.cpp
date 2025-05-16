@@ -37,11 +37,13 @@ void FT5336Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FT5336 Touchscreen...");
   
   // default config
-  this->x_raw_min_ = 0;
-  this->y_raw_min_ = 0;
-  this->x_raw_max_ = this->display_->get_native_width();
-  this->y_raw_max_ = this->display_->get_native_height();
-
+  if (this->x_raw_max_ == 0) {
+    this->x_raw_max_ = this->display_->get_native_width();
+  }
+  if (this->y_raw_max_ == 0) {
+    this->y_raw_max_ = this->display_->get_native_height();
+  }
+  
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
