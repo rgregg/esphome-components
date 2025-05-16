@@ -2,6 +2,11 @@
 substitutions:
   device_name: feather-esp32-s3-tft-touch
 
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
 esphome:
   name: feather-esp32-s3-tft-touch
   friendly_name: ${device_name}
@@ -68,10 +73,7 @@ packages:
       value_label: label_sensor4_value
       format: "%.1f"
 
-esp32:
-  board: esp32-s3-devkitc-1
-  framework:
-    type: arduino
+
 
 external_components:
   - source: "github://rgregg/esphome-components@main"
